@@ -7,34 +7,23 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title Decentralized Identity NFT (DIDNFT)
  * @dev This contract implements a basic ERC721 Non-Fungible Token (NFT) for decentralized identity.
- * Each NFT represents a unique identity, storing associated user information.
- * Only one NFT can be minted per address.
+ * Only the token ID and a UUID are stored on-chain, with all other sensitive user information stored off-chain.
  */
 contract DIDNFT is ERC721, Ownable {
     // Counter for generating unique token IDs
     uint256 private s_tokenIdCounter;
 
     // Mapping to track if an address has already minted an NFT
-    mapping(address => bool) private _hasMinted;
+    mapping(address => bool) private s_hasMinted;
 
-    // Struct to store user information associated with each NFT
-    struct UserInfo {
-        string username;
-        string email;
-        string metadataURI;
-    }
+    // Mapping from token ID to UUID
+    mapping(uint256 => string) private s_tokenUUIDs;
 
-    // Mapping from token ID to user information
-    mapping(uint256 => UserInfo) private _userInfos;
+    // Mapping for checking uniqueness of UUID
+    mapping(string => bool) private s_UUIDExists;
 
     // Event emitted when a new DID NFT is minted
-    event DIDMinted(
-        address indexed user,
-        uint256 tokenId,
-        string username,
-        string email,
-        string metadataURI
-    );
+    event DIDMinted(address indexed user, uint256 tokenId, string uuid);
 
     /**
      * @dev Constructor that initializes the contract with the token name and symbol,
@@ -49,52 +38,41 @@ contract DIDNFT is ERC721, Ownable {
 
     /**
      * @dev Function to mint a new DID NFT. Each address can only mint one NFT.
-     * @param username The username associated with the NFT.
-     * @param email The email associated with the NFT.
-     * @param metadataURI The URI pointing to the metadata for the NFT.
+     * @param uuid The UUID associated with the NFT, linking to off-chain data.
      */
-    function mintDID(
-        string memory username,
-        string memory email,
-        string memory metadataURI
-    ) public {
-        require(!_hasMinted[msg.sender], "User has already minted a DID NFT");
+    function mintDID(string memory uuid) public {
+        require(!s_hasMinted[msg.sender], "User has already minted a DID NFT");
+        require(!s_UUIDExists[uuid], "UUID already in use");
 
         uint256 tokenId = s_tokenIdCounter;
         _safeMint(msg.sender, tokenId);
 
-        // Store user information associated with this token ID
-        _userInfos[tokenId] = UserInfo(username, email, metadataURI);
+        // Store the UUID associated with this token ID
+        s_tokenUUIDs[tokenId] = uuid;
 
         // Mark this address as having minted an NFT
-        _hasMinted[msg.sender] = true;
+        s_hasMinted[msg.sender] = true;
 
         // Increment the token ID counter for the next mint
         s_tokenIdCounter += 1;
 
+        // CheckOff UUID
+        s_UUIDExists[uuid] = true;
+
         // Emit an event that the DID NFT has been minted
-        emit DIDMinted(msg.sender, tokenId, username, email, metadataURI);
+        emit DIDMinted(msg.sender, tokenId, uuid);
     }
 
     /**
-     * @dev Function to retrieve user information associated with a given token ID.
-     * @param tokenId The ID of the token to retrieve information for.
-     * @return A UserInfo struct containing the username, email, and metadata URI.
+     * @dev Function to retrieve the UUID associated with a given token ID.
+     * @param tokenId The ID of the token to retrieve the UUID for.
+     * @return The UUID string.
      */
-    function getUserInfo(
-        uint256 tokenId
-    ) public view returns (UserInfo memory) {
-        // Ensure the token exists before accessing its information
-        require(s_tokenIdCounter >= tokenId, "Token doesn't exist!");
-        return _userInfos[tokenId];
-    }
-
-    /**
-     * @dev Internal function to override the base URI used for computing {tokenURI}.
-     * This can be customized to point to a different metadata storage location if needed.
-     * @return The base URI string.
-     */
-    function _baseURI() internal view virtual override returns (string memory) {
-        return "https://metadata-storage-location.com/metadata/";
+    function getUUID(uint256 tokenId) public view returns (string memory) {
+        require(
+            tokenId <= s_tokenIdCounter && tokenId > 0,
+            "Token doesn't exist!"
+        );
+        return s_tokenUUIDs[tokenId];
     }
 }

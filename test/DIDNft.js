@@ -24,67 +24,58 @@ describe("DIDNFT", function () {
   });
 
   describe("Minting DID NFT", function () {
-    it("Should allow a user to mint a DID NFT", async function () {
-      await didNft
-        .connect(user1)
-        .mintDID("user1", "user1@example.com", "https://metadata.com/user1");
+    it("Should allow a user to mint a DID NFT with UUID", async function () {
+      const uuid = "123e4567-e89b-12d3-a456-426614174000";
+      await didNft.connect(user1).mintDID(uuid);
       expect(await didNft.ownerOf(1)).to.equal(user1.address);
 
-      const userInfo = await didNft.getUserInfo(1);
-      expect(userInfo.username).to.equal("user1");
-      expect(userInfo.email).to.equal("user1@example.com");
-      expect(userInfo.metadataURI).to.equal("https://metadata.com/user1");
+      const retrievedUUID = await didNft.getUUID(1);
+      expect(retrievedUUID).to.equal(uuid);
     });
 
     it("Should not allow a user to mint more than one DID NFT", async function () {
-      await didNft
-        .connect(user1)
-        .mintDID("user1", "user1@example.com", "https://metadata.com/user1");
+      const uuid = "123e4567-e89b-12d3-a456-426614174000";
+      await didNft.connect(user1).mintDID(uuid);
       await expect(
-        didNft
-          .connect(user1)
-          .mintDID("user1", "user1@example.com", "https://metadata.com/user1")
+        didNft.connect(user1).mintDID("another-uuid")
       ).to.be.revertedWith("User has already minted a DID NFT");
     });
 
     it("Should increment the token ID correctly", async function () {
       await didNft
         .connect(user1)
-        .mintDID("user1", "user1@example.com", "https://metadata.com/user1");
+        .mintDID("123e4567-e89b-12d3-a456-426614174000");
       await didNft
         .connect(user2)
-        .mintDID("user2", "user2@example.com", "https://metadata.com/user2");
+        .mintDID("123e4567-e89b-12d3-a456-426614174001");
 
       expect(await didNft.ownerOf(1)).to.equal(user1.address);
       expect(await didNft.ownerOf(2)).to.equal(user2.address);
     });
   });
 
-  describe("Retrieving User Information", function () {
-    it("Should retrieve correct user information by token ID", async function () {
-      await didNft
-        .connect(user1)
-        .mintDID("user1", "user1@example.com", "https://metadata.com/user1");
-      const userInfo = await didNft.getUserInfo(1);
-      expect(userInfo.username).to.equal("user1");
-      expect(userInfo.email).to.equal("user1@example.com");
-      expect(userInfo.metadataURI).to.equal("https://metadata.com/user1");
+  describe("Retrieving UUID Information", function () {
+    it("Should retrieve correct UUID by token ID", async function () {
+      const uuid = "123e4567-e89b-12d3-a456-426614174000";
+      await didNft.connect(user1).mintDID(uuid);
+
+      const retrievedUUID = await didNft.getUUID(1);
+      expect(retrievedUUID).to.equal(uuid);
     });
 
-    it("Should revert when retrieving info for a non-existent token ID", async function () {
-      await expect(didNft.getUserInfo(999)).to.be.revertedWith(
+    it("Should revert when retrieving UUID for a non-existent token ID", async function () {
+      await expect(didNft.getUUID(999)).to.be.revertedWith(
         "Token doesn't exist!"
       );
     });
   });
 
-  describe("Base URI", function () {
-    it("Should correctly form the token URI", async function () {
-      await didNft
-        .connect(user1)
-        .mintDID("user1", "user1@example.com", "https://metadata.com/user1");
-      expect(await didNft.tokenURI(1)).to.equal(
-        "https://metadata-storage-location.com/metadata/1"
+  describe("Unique Minting", function () {
+    it("Should revert if the same UUID is used for a new mint", async function () {
+      const uuid = "123e4567-e89b-12d3-a456-426614174000";
+      await didNft.connect(user1).mintDID(uuid);
+      await expect(didNft.connect(user2).mintDID(uuid)).to.be.revertedWith(
+        "UUID already in use"
       );
     });
   });
